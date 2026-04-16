@@ -4,6 +4,7 @@ const auth = require("../middleware/auth")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
+router.use(auth)
 function getTabAccess(user, tabId) {
     return (user?.tabs || []).find((tab) => Number(tab.id) === Number(tabId))?.access || null
 }
@@ -189,7 +190,7 @@ async function applyRosterUserAccess({ tab, rosterGroupId, userId, rankId }) {
     await syncUserMembershipForGroup({ userId, groupId: rosterGroupId, rankId })
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.query?.tabId, 10)
         if (Number.isInteger(tabId) && tabId > 0) {
@@ -244,7 +245,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.post("/", auth, async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.body?.tabId, 10)
         const displayName = String(req.body?.displayName || "").trim()
@@ -302,7 +303,7 @@ router.post("/", auth, async (req, res) => {
     }
 })
 
-router.put("/:entryId", auth, async (req, res) => {
+router.put("/:entryId", async (req, res) => {
     try {
         const entryId = Number.parseInt(req.params.entryId, 10)
         if (!Number.isInteger(entryId) || entryId <= 0) {
@@ -381,7 +382,7 @@ router.put("/:entryId", auth, async (req, res) => {
     }
 })
 
-router.delete("/:entryId", auth, async (req, res) => {
+router.delete("/:entryId", async (req, res) => {
     try {
         const entryId = Number.parseInt(req.params.entryId, 10)
         if (!Number.isInteger(entryId) || entryId <= 0) {
@@ -432,7 +433,7 @@ router.delete("/:entryId", auth, async (req, res) => {
     }
 })
 
-router.put("/tabs/:tabId/default-group", auth, async (req, res) => {
+router.put("/tabs/:tabId/default-group", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.params.tabId, 10)
         const groupId = req.body?.groupId == null || req.body?.groupId === ""

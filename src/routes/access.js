@@ -8,6 +8,7 @@ const { normalizePermissions, getAllActiveTabs } = require("../utils/accessContr
 const { normalizeDiscordId } = require("../utils/discordId")
 
 const router = express.Router()
+router.use(auth)
 const AVAILABLE_PERMISSIONS = [
     {
         key: "dashboard.view",
@@ -213,7 +214,7 @@ async function updateTabMetadata(tabId, values) {
     )
 }
 
-router.get("/overview", auth, async (req, res) => {
+router.get("/overview", async (req, res) => {
     try {
         const [groupRows, rankRows, userRows, membershipRows, tabs, tabPermissions] = await Promise.all([
             pool.query(
@@ -302,7 +303,7 @@ router.get("/overview", auth, async (req, res) => {
     }
 })
 
-router.post("/tabs", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/tabs", requireRole(["superadmin"]), async (req, res) => {
     try {
         const label = String(req.body?.label || "").trim()
         const templateType = String(req.body?.templateType || "").trim().toLowerCase()
@@ -358,7 +359,7 @@ router.post("/tabs", auth, requireRole(["superadmin"]), async (req, res) => {
     }
 })
 
-router.delete("/tabs/:tabId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.delete("/tabs/:tabId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const tabId = Number.parseInt(req.params.tabId, 10)
         if (!Number.isInteger(tabId) || tabId <= 0) {
@@ -412,7 +413,7 @@ router.delete("/tabs/:tabId", auth, requireRole(["superadmin"]), async (req, res
     }
 })
 
-router.put("/tabs/:tabId", auth, async (req, res) => {
+router.put("/tabs/:tabId", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.params.tabId, 10)
         if (!Number.isInteger(tabId) || tabId <= 0) {
@@ -451,7 +452,7 @@ router.put("/tabs/:tabId", auth, async (req, res) => {
     }
 })
 
-router.put("/tabs/:tabId/permissions", auth, async (req, res) => {
+router.put("/tabs/:tabId/permissions", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.params.tabId, 10)
         const assignments = Array.isArray(req.body?.assignments) ? req.body.assignments : []
@@ -524,7 +525,7 @@ router.put("/tabs/:tabId/permissions", auth, async (req, res) => {
     }
 })
 
-router.post("/groups", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/groups", requireRole(["superadmin"]), async (req, res) => {
     try {
         const name = String(req.body?.name || "").trim()
         const description = String(req.body?.description || "").trim() || null
@@ -582,7 +583,7 @@ router.post("/groups", auth, requireRole(["superadmin"]), async (req, res) => {
     }
 })
 
-router.put("/groups/:groupId/permissions", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/groups/:groupId/permissions", requireRole(["superadmin"]), async (req, res) => {
     try {
         const groupId = Number.parseInt(req.params.groupId, 10)
         const permissions = normalizePermissions(req.body?.permissions)
@@ -615,7 +616,7 @@ router.put("/groups/:groupId/permissions", auth, requireRole(["superadmin"]), as
     }
 })
 
-router.put("/groups/:groupId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/groups/:groupId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const groupId = Number.parseInt(req.params.groupId, 10)
         const name = String(req.body?.name || "").trim()
@@ -661,7 +662,7 @@ router.put("/groups/:groupId", auth, requireRole(["superadmin"]), async (req, re
     }
 })
 
-router.post("/groups/:groupId/ranks", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/groups/:groupId/ranks", requireRole(["superadmin"]), async (req, res) => {
     try {
         const groupId = Number.parseInt(req.params.groupId, 10)
         const name = String(req.body?.name || "").trim()
@@ -723,7 +724,7 @@ router.post("/groups/:groupId/ranks", auth, requireRole(["superadmin"]), async (
     }
 })
 
-router.put("/ranks/:rankId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/ranks/:rankId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const rankId = Number.parseInt(req.params.rankId, 10)
         const name = String(req.body?.name || "").trim()
@@ -765,7 +766,7 @@ router.put("/ranks/:rankId", auth, requireRole(["superadmin"]), async (req, res)
     }
 })
 
-router.post("/users", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/users", requireRole(["superadmin"]), async (req, res) => {
     try {
         const username = String(req.body?.username || "").trim()
         const password = String(req.body?.password || "")
@@ -815,7 +816,7 @@ router.post("/users", auth, requireRole(["superadmin"]), async (req, res) => {
     }
 })
 
-router.post("/users/:userId/memberships", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/users/:userId/memberships", requireRole(["superadmin"]), async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10)
         const rankId = Number.parseInt(req.body?.rankId, 10)
@@ -870,7 +871,7 @@ router.post("/users/:userId/memberships", auth, requireRole(["superadmin"]), asy
     }
 })
 
-router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10)
         const username = String(req.body?.username || "").trim()
@@ -952,7 +953,7 @@ router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res)
     }
 })
 
-router.put("/users/:userId/memberships", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/users/:userId/memberships", requireRole(["superadmin"]), async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10)
         const memberships = Array.isArray(req.body?.memberships) ? req.body.memberships : []

@@ -4,6 +4,7 @@ const auth = require("../middleware/auth")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
+router.use(auth)
 
 function getTabAccess(user, tabId) {
     return (user?.tabs || []).find((tab) => Number(tab.id) === Number(tabId))?.access || null
@@ -74,7 +75,7 @@ function parseCursorPayload(value) {
     }
 }
 
-router.get("/drafts/:draftKey", auth, async (req, res) => {
+router.get("/drafts/:draftKey", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         if (!draftKey) {
@@ -117,7 +118,7 @@ router.get("/drafts/:draftKey", auth, async (req, res) => {
     }
 })
 
-router.put("/drafts/:draftKey", auth, async (req, res) => {
+router.put("/drafts/:draftKey", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         if (!draftKey) {
@@ -179,7 +180,7 @@ router.put("/drafts/:draftKey", auth, async (req, res) => {
     }
 })
 
-router.delete("/drafts/:draftKey", auth, async (req, res) => {
+router.delete("/drafts/:draftKey", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         if (!draftKey) {
@@ -194,7 +195,7 @@ router.delete("/drafts/:draftKey", auth, async (req, res) => {
     }
 })
 
-router.get("/drafts/:draftKey/presence", auth, async (req, res) => {
+router.get("/drafts/:draftKey/presence", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         const editorKey = normalizeEditorKey(req.query?.editorKey)
@@ -230,7 +231,7 @@ router.get("/drafts/:draftKey/presence", auth, async (req, res) => {
     }
 })
 
-router.put("/drafts/:draftKey/presence", auth, async (req, res) => {
+router.put("/drafts/:draftKey/presence", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         const editorKey = normalizeEditorKey(req.body?.editorKey)
@@ -262,7 +263,7 @@ router.put("/drafts/:draftKey/presence", auth, async (req, res) => {
     }
 })
 
-router.delete("/drafts/:draftKey/presence", auth, async (req, res) => {
+router.delete("/drafts/:draftKey/presence", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.params.draftKey)
         const editorKey = normalizeEditorKey(req.query?.editorKey)
@@ -281,7 +282,7 @@ router.delete("/drafts/:draftKey/presence", auth, async (req, res) => {
     }
 })
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.query?.tabId, 10)
         if (Number.isInteger(tabId) && tabId > 0 && !canAccessTab(req.user, tabId, "view")) {
@@ -328,7 +329,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.get("/:incidentId", auth, async (req, res) => {
+router.get("/:incidentId", async (req, res) => {
     try {
         const incidentId = Number.parseInt(req.params.incidentId, 10)
         if (!Number.isInteger(incidentId) || incidentId <= 0) {
@@ -419,7 +420,7 @@ router.get("/:incidentId", auth, async (req, res) => {
     }
 })
 
-router.post("/", auth, async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const draftKey = normalizeDraftKey(req.body?.draftKey)
         const tabId = req.body?.tabId ? Number(req.body.tabId) : null
@@ -579,7 +580,7 @@ router.post("/", auth, async (req, res) => {
     }
 })
 
-router.put("/:incidentId", auth, async (req, res) => {
+router.put("/:incidentId", async (req, res) => {
     try {
         const incidentId = Number.parseInt(req.params.incidentId, 10)
         const draftKey = normalizeDraftKey(req.body?.draftKey)

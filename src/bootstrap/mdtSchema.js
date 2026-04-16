@@ -10,6 +10,7 @@ const TABLES_SQL = [
             role VARCHAR(50) NOT NULL DEFAULT 'user',
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             discord_id VARCHAR(32) DEFAULT NULL,
+            citizenid VARCHAR(64) DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             last_login_at TIMESTAMP NULL DEFAULT NULL,
@@ -20,6 +21,7 @@ const TABLES_SQL = [
             KEY idx_mdt_users_role (role),
             KEY idx_mdt_users_is_active (is_active),
             KEY idx_mdt_users_discord_id (discord_id),
+            KEY idx_mdt_users_citizenid (citizenid),
             KEY idx_mdt_users_reset_passphrase_expires_at (reset_passphrase_expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `,
@@ -498,6 +500,10 @@ async function ensureUserSecurityColumns() {
             definition: "VARCHAR(32) DEFAULT NULL AFTER is_active"
         },
         {
+            columnName: "citizenid",
+            definition: "VARCHAR(64) DEFAULT NULL AFTER discord_id"
+        },
+        {
             columnName: "reset_passphrase",
             definition: "VARCHAR(100) DEFAULT NULL AFTER last_login_at"
         },
@@ -523,6 +529,10 @@ async function ensureUserSecurityColumns() {
         {
             indexName: "idx_mdt_users_discord_id",
             definition: "(discord_id)"
+        },
+        {
+            indexName: "idx_mdt_users_citizenid",
+            definition: "(citizenid)"
         },
         {
             indexName: "idx_mdt_users_reset_passphrase_expires_at",

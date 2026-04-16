@@ -4,6 +4,7 @@ const auth = require("../middleware/auth")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
+router.use(auth)
 const ALLOWED_BADGE_COLORS = new Set(["neutral", "red", "green", "yellow", "orange"])
 
 function buildEvidenceTag() {
@@ -41,7 +42,7 @@ async function getNextBadgeNumber() {
     return Number(rows[0]?.nextBadgeNumber || 1)
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const [rows] = await pool.query(
             `
@@ -59,7 +60,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.post("/", auth, async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const title = String(req.body?.title || "").trim()
         const evidenceType = String(req.body?.evidenceType || "").trim().toLowerCase()

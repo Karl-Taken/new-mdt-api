@@ -8,6 +8,7 @@ const { isLawEnforcement } = require("../utils/roles")
 
 const router = express.Router()
 const LEO_JOB_NAMES = ["sasp", "bcso"]
+router.use(auth)
 
 function canAccessSensitiveCharacterData(user) {
     return isLawEnforcement(user)
@@ -26,7 +27,7 @@ function isValidImageUrl(value) {
     }
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
         const requestedLimit = parseInt(req.query.limit, 10) || 20
@@ -99,7 +100,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.get("/leo-search", auth, async (req, res) => {
+router.get("/leo-search", async (req, res) => {
     try {
         const requestedLimit = parseInt(req.query.limit, 10) || 10
         const limit = Math.min(Math.max(requestedLimit, 1), 25)
@@ -148,7 +149,7 @@ router.get("/leo-search", auth, async (req, res) => {
     }
 })
 
-router.get("/roster-search", auth, async (req, res) => {
+router.get("/roster-search", async (req, res) => {
     try {
         const requestedLimit = parseInt(req.query.limit, 10) || 5
         const limit = Math.min(Math.max(requestedLimit, 1), 10)
@@ -207,7 +208,7 @@ router.get("/roster-search", auth, async (req, res) => {
     }
 })
 
-router.get("/:citizenid", auth, async (req, res) => {
+router.get("/:citizenid", async (req, res) => {
     try {
         const citizenid = String(req.params.citizenid || "").trim()
         if (!citizenid) {
@@ -339,7 +340,7 @@ router.get("/:citizenid", auth, async (req, res) => {
     }
 })
 
-router.post("/:citizenid/notes", auth, async (req, res) => {
+router.post("/:citizenid/notes", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen notes" })
@@ -375,7 +376,7 @@ router.post("/:citizenid/notes", auth, async (req, res) => {
     }
 })
 
-router.post("/:citizenid/flags", auth, async (req, res) => {
+router.post("/:citizenid/flags", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen flags" })
@@ -414,7 +415,7 @@ router.post("/:citizenid/flags", auth, async (req, res) => {
     }
 })
 
-router.post("/:citizenid/photo", auth, async (req, res) => {
+router.post("/:citizenid/photo", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen photos" })
@@ -455,7 +456,7 @@ router.post("/:citizenid/photo", auth, async (req, res) => {
     }
 })
 
-router.post("/:citizenid/vehicles", auth, async (req, res) => {
+router.post("/:citizenid/vehicles", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen vehicles" })
@@ -493,7 +494,7 @@ router.post("/:citizenid/vehicles", auth, async (req, res) => {
     }
 })
 
-router.delete("/:citizenid/notes/:noteId", auth, async (req, res) => {
+router.delete("/:citizenid/notes/:noteId", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen notes" })
@@ -521,7 +522,7 @@ router.delete("/:citizenid/notes/:noteId", auth, async (req, res) => {
     }
 })
 
-router.delete("/:citizenid/flags/:flagId", auth, async (req, res) => {
+router.delete("/:citizenid/flags/:flagId", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen flags" })
@@ -549,7 +550,7 @@ router.delete("/:citizenid/flags/:flagId", auth, async (req, res) => {
     }
 })
 
-router.delete("/:citizenid/vehicles/:vehicleId", auth, async (req, res) => {
+router.delete("/:citizenid/vehicles/:vehicleId", async (req, res) => {
     try {
         if (!canAccessSensitiveCharacterData(req.user)) {
             return res.status(403).json({ error: "Only law enforcement can manage citizen vehicles" })

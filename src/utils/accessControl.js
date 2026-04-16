@@ -79,7 +79,7 @@ async function getAllActiveTabs() {
 async function getUserAccessProfile(userId) {
     const [userRows] = await pool.query(
         `
-            SELECT id, username, role, is_active
+            SELECT id, username, role, is_active, citizenid
             FROM mdt_users
             WHERE id = ?
             LIMIT 1
@@ -243,6 +243,7 @@ async function getUserAccessProfile(userId) {
     return {
         id: Number(user.id),
         username: user.username,
+        citizenid: user.citizenid || null,
         role: normalizeRole(user.role),
         permissions: Array.from(permissionSet),
         memberships,

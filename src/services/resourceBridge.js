@@ -70,5 +70,6 @@ async function fetchOnlinePlayers() {
 }
 
 module.exports = {
-    fetchOnlinePlayers
+    fetchOnlinePlayers,
+    getApiKey
 }

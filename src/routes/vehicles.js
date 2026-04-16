@@ -4,8 +4,9 @@ const auth = require("../middleware/auth")
 const { getCharacterName, safeJsonParse } = require("../utils/characters")
 
 const router = express.Router()
+router.use(auth)
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const search = String(req.query.search || "").trim()
         const params = []
@@ -56,7 +57,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.get("/:plate", auth, async (req, res) => {
+router.get("/:plate", async (req, res) => {
     try {
         const plate = String(req.params.plate || "").trim()
         const [rows] = await pool.query(

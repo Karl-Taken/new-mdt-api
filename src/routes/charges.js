@@ -158,7 +158,9 @@ router.get("/public", async (req, res) => {
     }
 })
 
-router.get("/", auth, async (req, res) => {
+router.use(auth)
+
+router.get("/", async (req, res) => {
     try {
         res.json(await getChargeDirectoryPayload())
     } catch (error) {
@@ -167,7 +169,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.get("/categories", auth, async (req, res) => {
+router.get("/categories", async (req, res) => {
     try {
         const [rows] = await pool.query(
             `
@@ -184,7 +186,7 @@ router.get("/categories", auth, async (req, res) => {
     }
 })
 
-router.post("/categories", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/categories", requireRole(["superadmin"]), async (req, res) => {
     try {
         const name = String(req.body?.name || "").trim()
         const kind = "title"
@@ -228,7 +230,7 @@ router.post("/categories", auth, requireRole(["superadmin"]), async (req, res) =
     }
 })
 
-router.put("/categories/:categoryId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.put("/categories/:categoryId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const categoryId = Number.parseInt(req.params.categoryId, 10)
         const name = String(req.body?.name || "").trim()
@@ -307,7 +309,7 @@ router.put("/categories/:categoryId", auth, requireRole(["superadmin"]), async (
     }
 })
 
-router.post("/categories/:categoryId/move", auth, requireRole(["superadmin"]), async (req, res) => {
+router.post("/categories/:categoryId/move", requireRole(["superadmin"]), async (req, res) => {
     try {
         const categoryId = Number.parseInt(req.params.categoryId, 10)
         const direction = String(req.body?.direction || "").trim().toLowerCase()
@@ -372,7 +374,7 @@ router.post("/categories/:categoryId/move", auth, requireRole(["superadmin"]), a
     }
 })
 
-router.post("/categories/:categoryId/definitions", auth, requirePermission("charges.edit"), async (req, res) => {
+router.post("/categories/:categoryId/definitions", requirePermission("charges.edit"), async (req, res) => {
     try {
         const categoryId = Number.parseInt(req.params.categoryId, 10)
         const code = String(req.body?.code || "").trim()
@@ -442,7 +444,7 @@ router.post("/categories/:categoryId/definitions", auth, requirePermission("char
     }
 })
 
-router.put("/definitions/:definitionId", auth, requirePermission("charges.edit"), async (req, res) => {
+router.put("/definitions/:definitionId", requirePermission("charges.edit"), async (req, res) => {
     try {
         const definitionId = Number.parseInt(req.params.definitionId, 10)
         const code = String(req.body?.code || "").trim()
@@ -517,7 +519,7 @@ router.put("/definitions/:definitionId", auth, requirePermission("charges.edit")
     }
 })
 
-router.delete("/categories/:categoryId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.delete("/categories/:categoryId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const categoryId = Number.parseInt(req.params.categoryId, 10)
         if (!Number.isInteger(categoryId) || categoryId <= 0) {
@@ -573,7 +575,7 @@ router.delete("/categories/:categoryId", auth, requireRole(["superadmin"]), asyn
     }
 })
 
-router.get("/:chargeId", auth, async (req, res) => {
+router.get("/:chargeId", async (req, res) => {
     try {
         const chargeId = Number.parseInt(req.params.chargeId, 10)
         if (!Number.isInteger(chargeId) || chargeId <= 0) {
@@ -616,7 +618,7 @@ router.get("/:chargeId", auth, async (req, res) => {
     }
 })
 
-router.post("/", auth, requirePermission("charges.edit"), async (req, res) => {
+router.post("/", requirePermission("charges.edit"), async (req, res) => {
     try {
         const title = String(req.body?.title || "").trim()
         const category = String(req.body?.category || "").trim()
@@ -669,7 +671,7 @@ router.post("/", auth, requirePermission("charges.edit"), async (req, res) => {
     }
 })
 
-router.put("/:chargeId", auth, requirePermission("charges.edit"), async (req, res) => {
+router.put("/:chargeId", requirePermission("charges.edit"), async (req, res) => {
     try {
         const chargeId = Number.parseInt(req.params.chargeId, 10)
         const title = String(req.body?.title || "").trim()
@@ -738,7 +740,7 @@ router.put("/:chargeId", auth, requirePermission("charges.edit"), async (req, re
     }
 })
 
-router.delete("/:chargeId", auth, requireRole(["superadmin"]), async (req, res) => {
+router.delete("/:chargeId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const chargeId = Number.parseInt(req.params.chargeId, 10)
         if (!Number.isInteger(chargeId) || chargeId <= 0) {

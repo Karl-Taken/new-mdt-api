@@ -3,6 +3,7 @@ const pool = require("../config/db")
 const auth = require("../middleware/auth")
 
 const router = express.Router()
+router.use(auth)
 
 function canAccessTab(user, tabId, permission = "view") {
     if (user?.role === "superadmin") {
@@ -25,7 +26,7 @@ function canAccessTab(user, tabId, permission = "view") {
     return Boolean(access.canView || access.canEdit || access.canManage)
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.query?.tabId, 10)
         const hasScopedTab = Number.isInteger(tabId) && tabId > 0

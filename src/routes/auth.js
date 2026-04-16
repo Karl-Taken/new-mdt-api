@@ -7,6 +7,8 @@ const auth = require("../middleware/auth")
 const { getUserAccessProfile } = require("../utils/accessControl")
 const { getClientIp } = require("../utils/clientIp")
 const { sendDirectMessage } = require("../services/discord")
+const { getApiKey: getBridgeApiKey } = require("../services/resourceBridge")
+const { normalizeDiscordId } = require("../utils/discordId")
 
 const router = express.Router()
 const LOGIN_MAX_FAILED_ATTEMPTS = Number(process.env.LOGIN_MAX_FAILED_ATTEMPTS || 5)
@@ -33,6 +35,103 @@ function generateResetCodeword() {
 
 function normalizeResetCodeword(value) {
     return String(value || "").trim().toLowerCase()
+}
+
+function normalizeCitizenId(value) {
+    const citizenId = String(value || "").trim()
+    return citizenId || null
+}
+
+function normalizeFiveMRole(value) {
+    const normalized = String(value || "").trim().toLowerCase()
+    if (["law_enforcement", "admin", "superadmin"].includes(normalized)) {
+        return normalized
+    }
+
+    return "law_enforcement"
+}
+
+function buildFiveMUsername(citizenId) {
+    return `fivem-${String(citizenId || "").trim().toLowerCase()}`
+}
+
+async function getSharedDiscordIdForUser(userId) {
+    if (!userId) {
+        return null
+    }
+
+    const [rows] = await pool.query(
+        `
+            SELECT discord
+            FROM users
+            WHERE userId = ?
+            LIMIT 1
+        `,
+        [userId]
+    )
+
+    return normalizeDiscordId(rows[0]?.discord || null)
+}
+
+async function getFirstRankForGroupName(groupName) {
+    if (!groupName) {
+        return null
+    }
+
+    const [rows] = await pool.query(
+        `
+            SELECT groups.id AS group_id, ranks.id AS rank_id
+            FROM mdt_groups AS groups
+            INNER JOIN mdt_group_ranks AS ranks
+                ON ranks.group_id = groups.id
+            WHERE groups.name = ?
+            ORDER BY ranks.sort_order ASC, ranks.id ASC
+            LIMIT 1
+        `,
+        [groupName]
+    )
+
+    return rows[0] || null
+}
+
+async function ensureUserMembershipForGroupName(userId, groupName) {
+    const firstRank = await getFirstRankForGroupName(groupName)
+    if (!firstRank) {
+        return false
+    }
+
+    await pool.query(
+        `
+            INSERT INTO mdt_user_group_memberships (user_id, group_id, rank_id, is_active)
+            VALUES (?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE
+                rank_id = VALUES(rank_id),
+                is_active = 1
+        `,
+        [userId, firstRank.group_id, firstRank.rank_id]
+    )
+
+    return true
+}
+
+async function getTrustedFiveMToken() {
+    const configuredToken = process.env.MDT_FIVEM_RESOURCE_TOKEN?.trim()
+    if (configuredToken) {
+        return configuredToken
+    }
+
+    return getBridgeApiKey()
+}
+
+async function isTrustedFiveMRequest(req) {
+    const authorization = String(req.headers?.authorization || "")
+    const bearerToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
+    if (!bearerToken) {
+        return false
+    }
+
+    const trustedToken = await getTrustedFiveMToken()
+    return Boolean(trustedToken && bearerToken === trustedToken)
 }
 
 async function getBlacklistEntry(ipAddress) {
@@ -208,6 +307,99 @@ router.get("/me", auth, async (req, res) => {
     res.json({
         user: req.user
     })
+})
+
+router.post("/fivem/session", async (req, res) => {
+    try {
+        const isTrusted = await isTrustedFiveMRequest(req)
+        if (!isTrusted) {
+            return res.status(403).json({ error: "Forbidden" })
+        }
+
+        const citizenid = normalizeCitizenId(req.body?.citizenid)
+        const userId = Number.parseInt(req.body?.userId, 10)
+        const requestedRole = normalizeFiveMRole(req.body?.role)
+        const mappedGroupName = String(req.body?.mdtGroup || "").trim() || null
+
+        if (!citizenid) {
+            return res.status(400).json({ error: "Citizen ID is required" })
+        }
+
+        const username = buildFiveMUsername(citizenid)
+        const discordId = await getSharedDiscordIdForUser(userId)
+        const [existingRows] = await pool.query(
+            `
+                SELECT id, username, role
+                FROM mdt_users
+                WHERE citizenid = ?
+                LIMIT 1
+            `,
+            [citizenid]
+        )
+
+        let userIdForSession = Number(existingRows[0]?.id || 0)
+        if (!userIdForSession) {
+            const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10)
+            const [insertResult] = await pool.query(
+                `
+                    INSERT INTO mdt_users (username, password_hash, role, is_active, discord_id, citizenid)
+                    VALUES (?, ?, ?, 1, ?, ?)
+                `,
+                [username, passwordHash, requestedRole, discordId, citizenid]
+            )
+            userIdForSession = Number(insertResult.insertId)
+        } else {
+            await pool.query(
+                `
+                    UPDATE mdt_users
+                    SET is_active = 1,
+                        discord_id = COALESCE(?, discord_id),
+                        citizenid = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `,
+                [discordId, citizenid, userIdForSession]
+            )
+        }
+
+        if (mappedGroupName) {
+            await ensureUserMembershipForGroupName(userIdForSession, mappedGroupName)
+        }
+
+        await pool.query(
+            `
+                UPDATE mdt_users
+                SET last_login_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `,
+            [userIdForSession]
+        )
+
+        const accessProfile = await getUserAccessProfile(userIdForSession)
+        if (!accessProfile) {
+            return res.status(500).json({ error: "Unable to create MDT session" })
+        }
+
+        const token = jwt.sign(
+            {
+                id: Number(accessProfile.id),
+                username: accessProfile.username,
+                role: accessProfile.role
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: process.env.JWT_EXPIRES_IN || "12h"
+            }
+        )
+
+        return res.json({
+            token,
+            user: accessProfile
+        })
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ error: "Server Error" })
+    }
 })
 
 router.post("/password-reset/request", async (req, res) => {

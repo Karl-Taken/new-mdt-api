@@ -4,6 +4,7 @@ const auth = require("../middleware/auth")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
+router.use(auth)
 
 function canAccessTab(user, tabId, permission = "view") {
     if (user?.role === "superadmin") {
@@ -26,7 +27,7 @@ function canAccessTab(user, tabId, permission = "view") {
     return Boolean(access.canView || access.canEdit || access.canManage)
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         const tabId = Number.parseInt(req.query?.tabId, 10)
         if (Number.isInteger(tabId) && tabId > 0 && !canAccessTab(req.user, tabId, "view")) {
@@ -54,7 +55,7 @@ router.get("/", auth, async (req, res) => {
     }
 })
 
-router.post("/", auth, async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const title = String(req.body?.title || "").trim()
         const body = String(req.body?.body || "").trim()
@@ -95,7 +96,7 @@ router.post("/", auth, async (req, res) => {
     }
 })
 
-router.delete("/:announcementId", auth, async (req, res) => {
+router.delete("/:announcementId", async (req, res) => {
     try {
         const announcementId = Number.parseInt(req.params.announcementId, 10)
         if (!Number.isInteger(announcementId) || announcementId <= 0) {

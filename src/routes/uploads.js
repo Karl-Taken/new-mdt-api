@@ -2,6 +2,7 @@ const express = require("express")
 const auth = require("../middleware/auth")
 
 const router = express.Router()
+router.use(auth)
 
 function getExtension(contentType) {
     switch (String(contentType || "").toLowerCase()) {
@@ -24,7 +25,7 @@ function normalizeFileName(fileName, contentType) {
     return cleanName.includes(".") ? cleanName : `${cleanName}.${getExtension(contentType)}`
 }
 
-router.post("/editor-image", auth, async (req, res) => {
+router.post("/editor-image", async (req, res) => {
     try {
         const uploadUrl = process.env.MDT_FILE_SERVER_UPLOAD_URL?.trim()
         const apiKey = process.env.MDT_FILE_SERVER_API_KEY?.trim()
