@@ -81,7 +81,18 @@ async function getAllActiveTabs() {
             SELECT id, tab_key, label, hover_label, path, template_type, group_id, icon_key, is_system, is_active, sort_order
             FROM mdt_tabs
             WHERE is_active = 1
-            ORDER BY sort_order ASC, label ASC
+            ORDER BY
+                CASE
+                    WHEN template_type = 'dashboard' OR tab_key = 'dashboard' THEN 0
+                    ELSE 1
+                END ASC,
+                CASE
+                    WHEN group_id IS NULL THEN 0
+                    ELSE 1
+                END ASC,
+                group_id ASC,
+                sort_order ASC,
+                label ASC
         `
     )
 

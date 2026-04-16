@@ -785,7 +785,7 @@ router.post("/users", requireRole(["superadmin"]), async (req, res) => {
             return res.status(400).json({ error: "Discord ID must be a valid Discord snowflake" })
         }
 
-        if (!["user", "law_enforcement", "admin", "superadmin"].includes(role)) {
+        if (!["user", "admin", "superadmin"].includes(role)) {
             return res.status(400).json({ error: "Invalid role" })
         }
 
@@ -893,7 +893,7 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             return res.status(400).json({ error: "Username is required" })
         }
 
-        if (!["user", "law_enforcement", "admin", "superadmin"].includes(role)) {
+        if (!["user", "admin", "superadmin"].includes(role)) {
             return res.status(400).json({ error: "Invalid role" })
         }
 

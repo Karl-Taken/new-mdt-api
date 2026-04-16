@@ -44,11 +44,11 @@ function normalizeCitizenId(value) {
 
 function normalizeFiveMRole(value) {
     const normalized = String(value || "").trim().toLowerCase()
-    if (["law_enforcement", "admin", "superadmin"].includes(normalized)) {
+    if (["admin", "superadmin"].includes(normalized)) {
         return normalized
     }
 
-    return "law_enforcement"
+    return "user"
 }
 
 function buildFiveMUsername(citizenId) {

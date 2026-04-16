@@ -473,8 +473,8 @@ async function ensureUserRoleDefaults() {
     await pool.query(
         `
             UPDATE mdt_users
-            SET role = 'law_enforcement'
-            WHERE role = 'officer'
+            SET role = 'user'
+            WHERE role IN ('officer', 'law_enforcement')
         `
     )
 

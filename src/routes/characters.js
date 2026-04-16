@@ -4,14 +4,14 @@ const auth = require("../middleware/auth")
 const { serializeCharacterRow, getCharacterName, safeJsonParse } = require("../utils/characters")
 const { fetchOnlinePlayers } = require("../services/resourceBridge")
 const logAction = require("../utils/auditLogger")
-const { isLawEnforcement } = require("../utils/roles")
+const { userHasPermission } = require("../utils/accessControl")
 
 const router = express.Router()
 const LEO_JOB_NAMES = ["sasp", "bcso"]
 router.use(auth)
 
 function canAccessSensitiveCharacterData(user) {
-    return isLawEnforcement(user)
+    return userHasPermission(user, "characters.view")
 }
 
 function isValidImageUrl(value) {
