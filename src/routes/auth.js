@@ -55,6 +55,13 @@ function buildFiveMUsername(citizenId) {
     return String(citizenId || "").trim()
 }
 
+function buildFiveMDisplayName(firstName, lastName, fallbackValue) {
+    const normalizedFirstName = String(firstName || "").trim()
+    const normalizedLastName = String(lastName || "").trim()
+    const fullName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim()
+    return fullName || String(fallbackValue || "").trim()
+}
+
 async function getSharedDiscordIdForUser(userId) {
     if (!userId) {
         return null
@@ -328,12 +335,16 @@ router.post("/fivem/session", async (req, res) => {
         const userId = Number.parseInt(req.body?.userId, 10)
         const requestedRole = normalizeFiveMRole(req.body?.role)
         const mappedGroupName = String(req.body?.mdtGroup || "").trim() || null
+        const firstName = String(req.body?.firstname || "").trim()
+        const lastName = String(req.body?.lastname || "").trim()
 
         console.log("[MDT Auth] FiveM session request", {
             citizenid,
             userId,
             requestedRole,
-            mappedGroupName
+            mappedGroupName,
+            firstName,
+            lastName
         })
 
         if (!citizenid) {
@@ -341,6 +352,7 @@ router.post("/fivem/session", async (req, res) => {
         }
 
         const username = buildFiveMUsername(citizenid)
+        const displayName = buildFiveMDisplayName(firstName, lastName, username)
         const discordId = await getSharedDiscordIdForUser(userId)
         const [existingRows] = await pool.query(
             `
@@ -357,15 +369,16 @@ router.post("/fivem/session", async (req, res) => {
             const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10)
             const [insertResult] = await pool.query(
                 `
-                    INSERT INTO mdt_users (username, password_hash, role, is_active, discord_id, citizenid)
-                    VALUES (?, ?, ?, 1, ?, ?)
+                    INSERT INTO mdt_users (username, password_hash, role, is_active, discord_id, citizenid, display_name)
+                    VALUES (?, ?, ?, 1, ?, ?, ?)
                 `,
-                [username, passwordHash, requestedRole, discordId, citizenid]
+                [username, passwordHash, requestedRole, discordId, citizenid, displayName]
             )
             userIdForSession = Number(insertResult.insertId)
             console.log("[MDT Auth] Created MDT user from FiveM session", {
                 userId: userIdForSession,
                 username,
+                displayName,
                 citizenid,
                 requestedRole,
                 discordId
@@ -380,17 +393,19 @@ router.post("/fivem/session", async (req, res) => {
                                 THEN ?
                             ELSE username
                         END,
+                        display_name = ?,
                         discord_id = COALESCE(?, discord_id),
                         citizenid = ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 `,
-                [buildFiveMUsername(citizenid), `fivem-${String(citizenid || "").trim().toLowerCase()}`, buildFiveMUsername(citizenid), discordId, citizenid, userIdForSession]
+                [buildFiveMUsername(citizenid), `fivem-${String(citizenid || "").trim().toLowerCase()}`, buildFiveMUsername(citizenid), displayName, discordId, citizenid, userIdForSession]
             )
 
             console.log("[MDT Auth] Reused MDT user for FiveM session", {
                 userId: userIdForSession,
                 username,
+                displayName,
                 citizenid,
                 discordId
             })

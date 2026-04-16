@@ -15,6 +15,29 @@ const TAB_COMPATIBILITY_PERMISSIONS = {
 const EVERYONE_GROUP_NAME = "@everyone"
 const EVERYONE_RANK_NAME = "Everyone"
 
+function safeJsonParse(value, fallbackValue = null) {
+    if (value == null || value === "") {
+        return fallbackValue
+    }
+
+    if (typeof value === "object") {
+        return value
+    }
+
+    try {
+        return JSON.parse(value)
+    } catch (_error) {
+        return fallbackValue
+    }
+}
+
+function buildCharacterDisplayName(charinfo, fallbackValue) {
+    const firstName = String(charinfo?.firstname || "").trim()
+    const lastName = String(charinfo?.lastname || "").trim()
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim()
+    return fullName || String(fallbackValue || "").trim() || null
+}
+
 function normalizePermissions(value) {
     if (Array.isArray(value)) {
         return value.map((permission) => String(permission || "").trim()).filter(Boolean)
@@ -79,8 +102,14 @@ async function getAllActiveTabs() {
 async function getUserAccessProfile(userId) {
     const [userRows] = await pool.query(
         `
-            SELECT id, username, role, is_active, citizenid
+            SELECT mdt_users.id, mdt_users.username, mdt_users.role, mdt_users.is_active, mdt_users.citizenid, mdt_users.display_name,
+                   players.charinfo, players.name AS character_name,
+                   profiles.image_url AS profile_image_url
             FROM mdt_users
+            LEFT JOIN players
+                ON players.citizenid = mdt_users.citizenid
+            LEFT JOIN mdt_character_profiles AS profiles
+                ON profiles.citizenid = mdt_users.citizenid
             WHERE id = ?
             LIMIT 1
         `,
@@ -95,6 +124,8 @@ async function getUserAccessProfile(userId) {
         ...userRows[0],
         role: normalizeRole(userRows[0]?.role)
     }
+    const characterInfo = safeJsonParse(user.charinfo, {})
+    const displayName = String(user.display_name || "").trim() || buildCharacterDisplayName(characterInfo, user.character_name || user.username)
     const [membershipRows, activeTabs, tabPermissionRows, everyoneRows] = await Promise.all([
         pool.query(
             `
@@ -244,6 +275,10 @@ async function getUserAccessProfile(userId) {
         id: Number(user.id),
         username: user.username,
         citizenid: user.citizenid || null,
+        firstName: characterInfo?.firstname || null,
+        lastName: characterInfo?.lastname || null,
+        displayName,
+        imageUrl: user.profile_image_url || null,
         role: normalizeRole(user.role),
         permissions: Array.from(permissionSet),
         memberships,

@@ -11,6 +11,7 @@ const TABLES_SQL = [
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             discord_id VARCHAR(32) DEFAULT NULL,
             citizenid VARCHAR(64) DEFAULT NULL,
+            display_name VARCHAR(255) DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             last_login_at TIMESTAMP NULL DEFAULT NULL,
@@ -504,6 +505,10 @@ async function ensureUserSecurityColumns() {
             definition: "VARCHAR(64) DEFAULT NULL AFTER discord_id"
         },
         {
+            columnName: "display_name",
+            definition: "VARCHAR(255) DEFAULT NULL AFTER citizenid"
+        },
+        {
             columnName: "reset_passphrase",
             definition: "VARCHAR(100) DEFAULT NULL AFTER last_login_at"
         },
@@ -557,6 +562,15 @@ async function ensureUserSecurityColumns() {
             UPDATE mdt_users
             SET discord_id = NULL
             WHERE discord_id = ''
+        `
+    )
+
+    await pool.query(
+        `
+            UPDATE mdt_users
+            SET display_name = username
+            WHERE display_name IS NULL
+                OR display_name = ''
         `
     )
 }

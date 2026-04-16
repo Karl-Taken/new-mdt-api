@@ -233,7 +233,7 @@ router.get("/overview", async (req, res) => {
             ),
             pool.query(
                 `
-                    SELECT id, username, role, is_active, last_login_at
+                    SELECT id, username, display_name, role, is_active, last_login_at
                            , discord_id
                     FROM mdt_users
                     ORDER BY username ASC
@@ -769,6 +769,7 @@ router.put("/ranks/:rankId", requireRole(["superadmin"]), async (req, res) => {
 router.post("/users", requireRole(["superadmin"]), async (req, res) => {
     try {
         const username = String(req.body?.username || "").trim()
+        const displayName = String(req.body?.displayName || "").trim() || username
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
         const rawDiscordId = req.body?.discordId
@@ -791,10 +792,10 @@ router.post("/users", requireRole(["superadmin"]), async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10)
         await pool.query(
             `
-                INSERT INTO mdt_users (username, password_hash, role, discord_id)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO mdt_users (username, display_name, password_hash, role, discord_id)
+                VALUES (?, ?, ?, ?, ?)
             `,
-            [username, passwordHash, role, discordId]
+            [username, displayName, passwordHash, role, discordId]
         )
 
         await logAction({
@@ -802,7 +803,7 @@ router.post("/users", requireRole(["superadmin"]), async (req, res) => {
             action: "ACCESS_USER_CREATED",
             targetType: "mdt_user",
             targetId: username,
-            metadata: { role, discordId }
+            metadata: { role, discordId, displayName }
         })
 
         res.json({ success: true })
@@ -875,6 +876,7 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10)
         const username = String(req.body?.username || "").trim()
+        const displayName = String(req.body?.displayName || "").trim() || username
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
         const isActive = req.body?.isActive === false ? 0 : 1
@@ -918,19 +920,19 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, role = ?, is_active = ?, discord_id = ?, password_hash = ?
+                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?, password_hash = ?
                     WHERE id = ?
                 `,
-                [username, role, isActive, discordId, passwordHash, userId]
+                [username, displayName, role, isActive, discordId, passwordHash, userId]
             )
         } else {
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, role = ?, is_active = ?, discord_id = ?
+                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?
                     WHERE id = ?
                 `,
-                [username, role, isActive, discordId, userId]
+                [username, displayName, role, isActive, discordId, userId]
             )
         }
 
@@ -939,7 +941,7 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             action: "ACCESS_USER_UPDATED",
             targetType: "mdt_user",
             targetId: String(userId),
-            metadata: { username, role, isActive: Boolean(isActive), discordId, passwordChanged: Boolean(password) }
+            metadata: { username, displayName, role, isActive: Boolean(isActive), discordId, passwordChanged: Boolean(password) }
         })
 
         res.json({ success: true })
