@@ -52,7 +52,7 @@ function normalizeFiveMRole(value) {
 }
 
 function buildFiveMUsername(citizenId) {
-    return `fivem-${String(citizenId || "").trim().toLowerCase()}`
+    return String(citizenId || "").trim()
 }
 
 async function getSharedDiscordIdForUser(userId) {
@@ -353,12 +353,17 @@ router.post("/fivem/session", async (req, res) => {
                 `
                     UPDATE mdt_users
                     SET is_active = 1,
+                        username = CASE
+                            WHEN username = ? OR username = ?
+                                THEN ?
+                            ELSE username
+                        END,
                         discord_id = COALESCE(?, discord_id),
                         citizenid = ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 `,
-                [discordId, citizenid, userIdForSession]
+                [buildFiveMUsername(citizenid), `fivem-${String(citizenid || "").trim().toLowerCase()}`, buildFiveMUsername(citizenid), discordId, citizenid, userIdForSession]
             )
         }
 
