@@ -969,6 +969,65 @@ async function ensureSamsMedicalReportsTab() {
     )
 }
 
+async function ensureEveryoneDefaultTabAccess() {
+    const [groupRows] = await pool.query(
+        `
+            SELECT groups.id AS group_id, ranks.id AS rank_id
+            FROM mdt_groups AS groups
+            INNER JOIN mdt_group_ranks AS ranks
+                ON ranks.group_id = groups.id
+            WHERE groups.name = '@everyone'
+                AND ranks.name = 'Everyone'
+            LIMIT 1
+        `
+    )
+
+    const everyoneGroupId = Number(groupRows[0]?.group_id || 0)
+    const everyoneRankId = Number(groupRows[0]?.rank_id || 0)
+    if (!everyoneGroupId || !everyoneRankId) {
+        return
+    }
+
+    const [dashboardRows] = await pool.query(
+        `
+            SELECT id
+            FROM mdt_tabs
+            WHERE tab_key = 'dashboard'
+            LIMIT 1
+        `
+    )
+
+    const dashboardTabId = Number(dashboardRows[0]?.id || 0)
+    if (!dashboardTabId) {
+        return
+    }
+
+    await pool.query(
+        `
+            INSERT INTO mdt_tab_rank_permissions (tab_id, group_id, rank_id, can_view, can_edit, can_manage)
+            VALUES (?, ?, ?, 1, 0, 0)
+            ON DUPLICATE KEY UPDATE
+                can_view = VALUES(can_view),
+                can_edit = VALUES(can_edit),
+                can_manage = VALUES(can_manage)
+        `,
+        [dashboardTabId, everyoneGroupId, everyoneRankId]
+    )
+
+    await pool.query(
+        `
+            DELETE permissions
+            FROM mdt_tab_rank_permissions AS permissions
+            INNER JOIN mdt_tabs AS tabs
+                ON tabs.id = permissions.tab_id
+            WHERE permissions.group_id = ?
+                AND permissions.rank_id = ?
+                AND tabs.id <> ?
+        `,
+        [everyoneGroupId, everyoneRankId, dashboardTabId]
+    )
+}
+
 async function ensureMdtSchema() {
     for (const sql of TABLES_SQL) {
         await pool.query(sql)
@@ -988,6 +1047,7 @@ async function ensureMdtSchema() {
     await ensureChargeCategories()
     await ensureChargeCategorySortOrder()
     await ensureDefaultTabs()
+    await ensureEveryoneDefaultTabAccess()
     await ensureSamsMedicalReportsTab()
     await ensureUserRoleDefaults()
     await ensureBootstrapAdmin()
