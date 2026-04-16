@@ -5,6 +5,7 @@ const auth = require("../middleware/auth")
 const requireRole = require("../middleware/requireRole")
 const logAction = require("../utils/auditLogger")
 const { normalizePermissions, getAllActiveTabs } = require("../utils/accessControl")
+const { normalizeDiscordId } = require("../utils/discordId")
 
 const router = express.Router()
 const AVAILABLE_PERMISSIONS = [
@@ -232,6 +233,7 @@ router.get("/overview", auth, async (req, res) => {
             pool.query(
                 `
                     SELECT id, username, role, is_active, last_login_at
+                           , discord_id
                     FROM mdt_users
                     ORDER BY username ASC
                 `
@@ -768,9 +770,17 @@ router.post("/users", auth, requireRole(["superadmin"]), async (req, res) => {
         const username = String(req.body?.username || "").trim()
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
+        const rawDiscordId = req.body?.discordId
+        const discordId = rawDiscordId == null || String(rawDiscordId).trim() === ""
+            ? null
+            : normalizeDiscordId(rawDiscordId)
 
         if (!username || !password) {
             return res.status(400).json({ error: "Username and password are required" })
+        }
+
+        if (rawDiscordId != null && String(rawDiscordId).trim() !== "" && !discordId) {
+            return res.status(400).json({ error: "Discord ID must be a valid Discord snowflake" })
         }
 
         if (!["user", "law_enforcement", "admin", "superadmin"].includes(role)) {
@@ -780,10 +790,10 @@ router.post("/users", auth, requireRole(["superadmin"]), async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10)
         await pool.query(
             `
-                INSERT INTO mdt_users (username, password_hash, role)
-                VALUES (?, ?, ?)
+                INSERT INTO mdt_users (username, password_hash, role, discord_id)
+                VALUES (?, ?, ?, ?)
             `,
-            [username, passwordHash, role]
+            [username, passwordHash, role, discordId]
         )
 
         await logAction({
@@ -791,7 +801,7 @@ router.post("/users", auth, requireRole(["superadmin"]), async (req, res) => {
             action: "ACCESS_USER_CREATED",
             targetType: "mdt_user",
             targetId: username,
-            metadata: { role }
+            metadata: { role, discordId }
         })
 
         res.json({ success: true })
@@ -867,6 +877,10 @@ router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res)
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
         const isActive = req.body?.isActive === false ? 0 : 1
+        const rawDiscordId = req.body?.discordId
+        const discordId = rawDiscordId == null || String(rawDiscordId).trim() === ""
+            ? null
+            : normalizeDiscordId(rawDiscordId)
 
         if (!Number.isInteger(userId) || userId <= 0) {
             return res.status(400).json({ error: "User ID is required" })
@@ -878,6 +892,10 @@ router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res)
 
         if (!["user", "law_enforcement", "admin", "superadmin"].includes(role)) {
             return res.status(400).json({ error: "Invalid role" })
+        }
+
+        if (rawDiscordId != null && String(rawDiscordId).trim() !== "" && !discordId) {
+            return res.status(400).json({ error: "Discord ID must be a valid Discord snowflake" })
         }
 
         const [existingRows] = await pool.query(
@@ -899,19 +917,19 @@ router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res)
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, role = ?, is_active = ?, password_hash = ?
+                    SET username = ?, role = ?, is_active = ?, discord_id = ?, password_hash = ?
                     WHERE id = ?
                 `,
-                [username, role, isActive, passwordHash, userId]
+                [username, role, isActive, discordId, passwordHash, userId]
             )
         } else {
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, role = ?, is_active = ?
+                    SET username = ?, role = ?, is_active = ?, discord_id = ?
                     WHERE id = ?
                 `,
-                [username, role, isActive, userId]
+                [username, role, isActive, discordId, userId]
             )
         }
 
@@ -920,7 +938,7 @@ router.put("/users/:userId", auth, requireRole(["superadmin"]), async (req, res)
             action: "ACCESS_USER_UPDATED",
             targetType: "mdt_user",
             targetId: String(userId),
-            metadata: { username, role, isActive: Boolean(isActive), passwordChanged: Boolean(password) }
+            metadata: { username, role, isActive: Boolean(isActive), discordId, passwordChanged: Boolean(password) }
         })
 
         res.json({ success: true })

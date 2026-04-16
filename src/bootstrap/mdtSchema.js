@@ -9,13 +9,18 @@ const TABLES_SQL = [
             password_hash VARCHAR(255) NOT NULL,
             role VARCHAR(50) NOT NULL DEFAULT 'user',
             is_active TINYINT(1) NOT NULL DEFAULT 1,
+            discord_id VARCHAR(32) DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             last_login_at TIMESTAMP NULL DEFAULT NULL,
+            reset_passphrase VARCHAR(100) DEFAULT NULL,
+            reset_passphrase_expires_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY uq_mdt_users_username (username),
             KEY idx_mdt_users_role (role),
-            KEY idx_mdt_users_is_active (is_active)
+            KEY idx_mdt_users_is_active (is_active),
+            KEY idx_mdt_users_discord_id (discord_id),
+            KEY idx_mdt_users_reset_passphrase_expires_at (reset_passphrase_expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `,
     `
@@ -486,6 +491,66 @@ async function ensureUserRoleDefaults() {
     }
 }
 
+async function ensureUserSecurityColumns() {
+    const expectedColumns = [
+        {
+            columnName: "discord_id",
+            definition: "VARCHAR(32) DEFAULT NULL AFTER is_active"
+        },
+        {
+            columnName: "reset_passphrase",
+            definition: "VARCHAR(100) DEFAULT NULL AFTER last_login_at"
+        },
+        {
+            columnName: "reset_passphrase_expires_at",
+            definition: "DATETIME DEFAULT NULL AFTER reset_passphrase"
+        }
+    ]
+
+    for (const column of expectedColumns) {
+        const [rows] = await pool.query("SHOW COLUMNS FROM mdt_users LIKE ?", [column.columnName])
+        if (!rows.length) {
+            await pool.query(
+                `
+                    ALTER TABLE mdt_users
+                    ADD COLUMN ${column.columnName} ${column.definition}
+                `
+            )
+        }
+    }
+
+    const expectedIndexes = [
+        {
+            indexName: "idx_mdt_users_discord_id",
+            definition: "(discord_id)"
+        },
+        {
+            indexName: "idx_mdt_users_reset_passphrase_expires_at",
+            definition: "(reset_passphrase_expires_at)"
+        }
+    ]
+
+    for (const index of expectedIndexes) {
+        const [rows] = await pool.query("SHOW INDEX FROM mdt_users WHERE Key_name = ?", [index.indexName])
+        if (!rows.length) {
+            await pool.query(
+                `
+                    ALTER TABLE mdt_users
+                    ADD KEY ${index.indexName} ${index.definition}
+                `
+            )
+        }
+    }
+
+    await pool.query(
+        `
+            UPDATE mdt_users
+            SET discord_id = NULL
+            WHERE discord_id = ''
+        `
+    )
+}
+
 async function ensureChargeCategories() {
     await pool.query(
         `
@@ -886,6 +951,7 @@ async function ensureMdtSchema() {
     }
 
     await ensureApiIpBlacklistColumns()
+    await ensureUserSecurityColumns()
     await ensureChargeEnhancementColors()
     await ensureGroupPermissionsColumn()
     await ensureChargeCategorySortOrder()
