@@ -1,8 +1,10 @@
 const express = require("express")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 
 const router = express.Router()
 router.use(auth)
+router.use(requirePermission("incidents.edit"))
 
 function getExtension(contentType) {
     switch (String(contentType || "").toLowerCase()) {

@@ -1,10 +1,12 @@
 const express = require("express")
 const pool = require("../config/db")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 const { getCharacterName, safeJsonParse } = require("../utils/characters")
 
 const router = express.Router()
 router.use(auth)
+router.use(requirePermission("vehicles.view"))
 
 router.get("/", async (req, res) => {
     try {

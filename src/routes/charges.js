@@ -159,6 +159,7 @@ router.get("/public", async (req, res) => {
 })
 
 router.use(auth)
+router.use(requirePermission("charges.view"))
 
 router.get("/", async (req, res) => {
     try {

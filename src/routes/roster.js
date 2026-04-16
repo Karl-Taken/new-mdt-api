@@ -1,10 +1,12 @@
 const express = require("express")
 const pool = require("../config/db")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
 router.use(auth)
+router.use(requirePermission("roster.view"))
 function getTabAccess(user, tabId) {
     return (user?.tabs || []).find((tab) => Number(tab.id) === Number(tabId))?.access || null
 }

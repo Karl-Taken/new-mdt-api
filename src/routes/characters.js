@@ -1,6 +1,7 @@
 const express = require("express")
 const pool = require("../config/db")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 const { serializeCharacterRow, getCharacterName, safeJsonParse } = require("../utils/characters")
 const { fetchOnlinePlayers } = require("../services/resourceBridge")
 const logAction = require("../utils/auditLogger")
@@ -9,6 +10,7 @@ const { userHasPermission } = require("../utils/accessControl")
 const router = express.Router()
 const LEO_JOB_NAMES = ["sasp", "bcso"]
 router.use(auth)
+router.use(requirePermission("characters.view"))
 
 function canAccessSensitiveCharacterData(user) {
     return userHasPermission(user, "characters.view")

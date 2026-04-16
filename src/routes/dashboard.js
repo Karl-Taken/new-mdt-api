@@ -1,9 +1,11 @@
 const express = require("express")
 const pool = require("../config/db")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 
 const router = express.Router()
 router.use(auth)
+router.use(requirePermission("dashboard.view"))
 
 function canAccessTab(user, tabId, permission = "view") {
     if (user?.role === "superadmin") {

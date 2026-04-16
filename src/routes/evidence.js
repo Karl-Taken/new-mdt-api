@@ -1,10 +1,12 @@
 const express = require("express")
 const pool = require("../config/db")
 const auth = require("../middleware/auth")
+const requirePermission = require("../middleware/requirePermission")
 const logAction = require("../utils/auditLogger")
 
 const router = express.Router()
 router.use(auth)
+router.use(requirePermission("evidence.view"))
 const ALLOWED_BADGE_COLORS = new Set(["neutral", "red", "green", "yellow", "orange"])
 
 function buildEvidenceTag() {
