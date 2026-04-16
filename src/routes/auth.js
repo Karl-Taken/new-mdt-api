@@ -304,6 +304,13 @@ router.post("/login", async (req, res) => {
 })
 
 router.get("/me", auth, async (req, res) => {
+    console.log("[MDT Auth] /auth/me resolved", {
+        userId: req.user?.id ?? null,
+        username: req.user?.username ?? null,
+        citizenid: req.user?.citizenid ?? null,
+        role: req.user?.role ?? null
+    })
+
     res.json({
         user: req.user
     })
@@ -313,6 +320,7 @@ router.post("/fivem/session", async (req, res) => {
     try {
         const isTrusted = await isTrustedFiveMRequest(req)
         if (!isTrusted) {
+            console.warn("[MDT Auth] Rejected untrusted FiveM session request")
             return res.status(403).json({ error: "Forbidden" })
         }
 
@@ -320,6 +328,13 @@ router.post("/fivem/session", async (req, res) => {
         const userId = Number.parseInt(req.body?.userId, 10)
         const requestedRole = normalizeFiveMRole(req.body?.role)
         const mappedGroupName = String(req.body?.mdtGroup || "").trim() || null
+
+        console.log("[MDT Auth] FiveM session request", {
+            citizenid,
+            userId,
+            requestedRole,
+            mappedGroupName
+        })
 
         if (!citizenid) {
             return res.status(400).json({ error: "Citizen ID is required" })
@@ -348,6 +363,13 @@ router.post("/fivem/session", async (req, res) => {
                 [username, passwordHash, requestedRole, discordId, citizenid]
             )
             userIdForSession = Number(insertResult.insertId)
+            console.log("[MDT Auth] Created MDT user from FiveM session", {
+                userId: userIdForSession,
+                username,
+                citizenid,
+                requestedRole,
+                discordId
+            })
         } else {
             await pool.query(
                 `
@@ -365,10 +387,22 @@ router.post("/fivem/session", async (req, res) => {
                 `,
                 [buildFiveMUsername(citizenid), `fivem-${String(citizenid || "").trim().toLowerCase()}`, buildFiveMUsername(citizenid), discordId, citizenid, userIdForSession]
             )
+
+            console.log("[MDT Auth] Reused MDT user for FiveM session", {
+                userId: userIdForSession,
+                username,
+                citizenid,
+                discordId
+            })
         }
 
         if (mappedGroupName) {
-            await ensureUserMembershipForGroupName(userIdForSession, mappedGroupName)
+            const membershipApplied = await ensureUserMembershipForGroupName(userIdForSession, mappedGroupName)
+            console.log("[MDT Auth] Applied mapped MDT group", {
+                userId: userIdForSession,
+                mappedGroupName,
+                membershipApplied
+            })
         }
 
         await pool.query(
@@ -384,6 +418,13 @@ router.post("/fivem/session", async (req, res) => {
         if (!accessProfile) {
             return res.status(500).json({ error: "Unable to create MDT session" })
         }
+
+        console.log("[MDT Auth] FiveM session resolved access profile", {
+            userId: accessProfile.id,
+            username: accessProfile.username,
+            citizenid: accessProfile.citizenid,
+            role: accessProfile.role
+        })
 
         const token = jwt.sign(
             {
