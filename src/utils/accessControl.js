@@ -110,7 +110,7 @@ async function getUserAccessProfile(userId) {
                 ON players.citizenid = mdt_users.citizenid
             LEFT JOIN mdt_character_profiles AS profiles
                 ON profiles.citizenid = mdt_users.citizenid
-            WHERE id = ?
+            WHERE mdt_users.id = ?
             LIMIT 1
         `,
         [userId]
