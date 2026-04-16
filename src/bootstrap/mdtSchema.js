@@ -969,7 +969,7 @@ async function ensureSamsMedicalReportsTab() {
     )
 }
 
-async function ensureEveryoneDefaultTabAccess() {
+async function cleanupLegacyEveryoneDefaultTabAccess() {
     const [groupRows] = await pool.query(
         `
             SELECT groups.id AS group_id, ranks.id AS rank_id
@@ -1002,30 +1002,33 @@ async function ensureEveryoneDefaultTabAccess() {
         return
     }
 
-    await pool.query(
+    const [permissionRows] = await pool.query(
         `
-            INSERT INTO mdt_tab_rank_permissions (tab_id, group_id, rank_id, can_view, can_edit, can_manage)
-            VALUES (?, ?, ?, 1, 0, 0)
-            ON DUPLICATE KEY UPDATE
-                can_view = VALUES(can_view),
-                can_edit = VALUES(can_edit),
-                can_manage = VALUES(can_manage)
+            SELECT tab_id, can_view, can_edit, can_manage
+            FROM mdt_tab_rank_permissions
+            WHERE group_id = ?
+                AND rank_id = ?
         `,
-        [dashboardTabId, everyoneGroupId, everyoneRankId]
+        [everyoneGroupId, everyoneRankId]
     )
 
-    await pool.query(
-        `
-            DELETE permissions
-            FROM mdt_tab_rank_permissions AS permissions
-            INNER JOIN mdt_tabs AS tabs
-                ON tabs.id = permissions.tab_id
-            WHERE permissions.group_id = ?
-                AND permissions.rank_id = ?
-                AND tabs.id <> ?
-        `,
-        [everyoneGroupId, everyoneRankId, dashboardTabId]
-    )
+    if (
+        permissionRows.length === 1 &&
+        Number(permissionRows[0]?.tab_id || 0) === dashboardTabId &&
+        Number(permissionRows[0]?.can_view || 0) === 1 &&
+        Number(permissionRows[0]?.can_edit || 0) === 0 &&
+        Number(permissionRows[0]?.can_manage || 0) === 0
+    ) {
+        await pool.query(
+            `
+                DELETE FROM mdt_tab_rank_permissions
+                WHERE group_id = ?
+                    AND rank_id = ?
+                    AND tab_id = ?
+            `,
+            [everyoneGroupId, everyoneRankId, dashboardTabId]
+        )
+    }
 }
 
 async function ensureMdtSchema() {
@@ -1047,7 +1050,7 @@ async function ensureMdtSchema() {
     await ensureChargeCategories()
     await ensureChargeCategorySortOrder()
     await ensureDefaultTabs()
-    await ensureEveryoneDefaultTabAccess()
+    await cleanupLegacyEveryoneDefaultTabAccess()
     await ensureSamsMedicalReportsTab()
     await ensureUserRoleDefaults()
     await ensureBootstrapAdmin()
