@@ -5,6 +5,7 @@ const auth = require("../middleware/auth")
 const requireRole = require("../middleware/requireRole")
 const logAction = require("../utils/auditLogger")
 const { normalizePermissions, getAllActiveTabs } = require("../utils/accessControl")
+const { getCharacterName, safeJsonParse } = require("../utils/characters")
 const { normalizeDiscordId } = require("../utils/discordId")
 
 const router = express.Router()
@@ -153,6 +154,47 @@ function buildGroupTabPath(groupName, templateType, tabKey) {
     return `/groups/${normalizeTabKey(groupName)}/${templateType}/${tabKey}`
 }
 
+function normalizeCitizenId(value) {
+    const normalized = String(value || "").trim()
+    return normalized || null
+}
+
+async function resolveAccountDisplayIdentity({ citizenId, username, fallbackDisplayName }) {
+    const normalizedCitizenId = normalizeCitizenId(citizenId)
+    const fallbackName = String(fallbackDisplayName || "").trim() || String(username || "").trim()
+
+    if (!normalizedCitizenId) {
+        return {
+            citizenId: null,
+            displayName: fallbackName
+        }
+    }
+
+    const [characterRows] = await pool.query(
+        `
+            SELECT citizenid, name, charinfo
+            FROM players
+            WHERE citizenid = ?
+            LIMIT 1
+        `,
+        [normalizedCitizenId]
+    )
+
+    if (!characterRows.length) {
+        return {
+            error: "Citizen ID was not found in player records"
+        }
+    }
+
+    const character = characterRows[0]
+    const characterName = getCharacterName(safeJsonParse(character.charinfo, {}), character.name)
+
+    return {
+        citizenId: normalizedCitizenId,
+        displayName: characterName || fallbackName
+    }
+}
+
 async function createManagedTab({ group, label, templateType }) {
     const tabKey = normalizeTabKey(`${group.name}-${label}-${group.id}`)
     const path = buildGroupTabPath(group.name, templateType, tabKey)
@@ -233,9 +275,20 @@ router.get("/overview", async (req, res) => {
             ),
             pool.query(
                 `
-                    SELECT id, username, display_name, role, is_active, last_login_at
-                           , discord_id
+                    SELECT
+                        mdt_users.id,
+                        mdt_users.username,
+                        mdt_users.display_name,
+                        mdt_users.role,
+                        mdt_users.is_active,
+                        mdt_users.last_login_at,
+                        mdt_users.discord_id,
+                        mdt_users.citizenid,
+                        players.name AS character_name,
+                        players.charinfo
                     FROM mdt_users
+                    LEFT JOIN players
+                        ON players.citizenid = mdt_users.citizenid
                     ORDER BY username ASC
                 `
             ),
@@ -270,7 +323,17 @@ router.get("/overview", async (req, res) => {
             : rankRows[0]
         const visibleUsers = manageableTabIds
             ? []
-            : userRows[0]
+            : userRows[0].map((userRow) => {
+                const characterName = userRow.citizenid
+                    ? getCharacterName(safeJsonParse(userRow.charinfo, {}), userRow.character_name || userRow.username)
+                    : ""
+
+                return {
+                    ...userRow,
+                    display_name: characterName || String(userRow.display_name || "").trim() || userRow.username,
+                    citizenid: userRow.citizenid || null
+                }
+            })
         const visibleMemberships = manageableTabIds
             ? membershipRows[0].filter((membership) => visibleGroupIds.has(Number(membership.group_id)))
             : membershipRows[0]
@@ -769,9 +832,10 @@ router.put("/ranks/:rankId", requireRole(["superadmin"]), async (req, res) => {
 router.post("/users", requireRole(["superadmin"]), async (req, res) => {
     try {
         const username = String(req.body?.username || "").trim()
-        const displayName = String(req.body?.displayName || "").trim() || username
+        const requestedDisplayName = String(req.body?.displayName || "").trim()
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
+        const requestedCitizenId = req.body?.citizenId
         const rawDiscordId = req.body?.discordId
         const discordId = rawDiscordId == null || String(rawDiscordId).trim() === ""
             ? null
@@ -789,13 +853,22 @@ router.post("/users", requireRole(["superadmin"]), async (req, res) => {
             return res.status(400).json({ error: "Invalid role" })
         }
 
+        const identity = await resolveAccountDisplayIdentity({
+            citizenId: requestedCitizenId,
+            username,
+            fallbackDisplayName: requestedDisplayName
+        })
+        if (identity.error) {
+            return res.status(400).json({ error: identity.error })
+        }
+
         const passwordHash = await bcrypt.hash(password, 10)
         await pool.query(
             `
-                INSERT INTO mdt_users (username, display_name, password_hash, role, discord_id)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO mdt_users (username, display_name, password_hash, role, discord_id, citizenid)
+                VALUES (?, ?, ?, ?, ?, ?)
             `,
-            [username, displayName, passwordHash, role, discordId]
+            [username, identity.displayName, passwordHash, role, discordId, identity.citizenId]
         )
 
         await logAction({
@@ -803,7 +876,7 @@ router.post("/users", requireRole(["superadmin"]), async (req, res) => {
             action: "ACCESS_USER_CREATED",
             targetType: "mdt_user",
             targetId: username,
-            metadata: { role, discordId, displayName }
+            metadata: { role, discordId, displayName: identity.displayName, citizenId: identity.citizenId }
         })
 
         res.json({ success: true })
@@ -876,10 +949,11 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10)
         const username = String(req.body?.username || "").trim()
-        const displayName = String(req.body?.displayName || "").trim() || username
+        const requestedDisplayName = String(req.body?.displayName || "").trim()
         const password = String(req.body?.password || "")
         const role = String(req.body?.role || "user").trim()
         const isActive = req.body?.isActive === false ? 0 : 1
+        const requestedCitizenId = req.body?.citizenId
         const rawDiscordId = req.body?.discordId
         const discordId = rawDiscordId == null || String(rawDiscordId).trim() === ""
             ? null
@@ -901,6 +975,15 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             return res.status(400).json({ error: "Discord ID must be a valid Discord snowflake" })
         }
 
+        const identity = await resolveAccountDisplayIdentity({
+            citizenId: requestedCitizenId,
+            username,
+            fallbackDisplayName: requestedDisplayName
+        })
+        if (identity.error) {
+            return res.status(400).json({ error: identity.error })
+        }
+
         const [existingRows] = await pool.query(
             `
                 SELECT id
@@ -920,19 +1003,19 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?, password_hash = ?
+                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?, citizenid = ?, password_hash = ?
                     WHERE id = ?
                 `,
-                [username, displayName, role, isActive, discordId, passwordHash, userId]
+                [username, identity.displayName, role, isActive, discordId, identity.citizenId, passwordHash, userId]
             )
         } else {
             await pool.query(
                 `
                     UPDATE mdt_users
-                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?
+                    SET username = ?, display_name = ?, role = ?, is_active = ?, discord_id = ?, citizenid = ?
                     WHERE id = ?
                 `,
-                [username, displayName, role, isActive, discordId, userId]
+                [username, identity.displayName, role, isActive, discordId, identity.citizenId, userId]
             )
         }
 
@@ -941,7 +1024,15 @@ router.put("/users/:userId", requireRole(["superadmin"]), async (req, res) => {
             action: "ACCESS_USER_UPDATED",
             targetType: "mdt_user",
             targetId: String(userId),
-            metadata: { username, displayName, role, isActive: Boolean(isActive), discordId, passwordChanged: Boolean(password) }
+            metadata: {
+                username,
+                displayName: identity.displayName,
+                citizenId: identity.citizenId,
+                role,
+                isActive: Boolean(isActive),
+                discordId,
+                passwordChanged: Boolean(password)
+            }
         })
 
         res.json({ success: true })
