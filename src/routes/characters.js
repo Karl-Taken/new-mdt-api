@@ -153,15 +153,25 @@ router.get("/leo-search", async (req, res) => {
 
 router.get("/roster-search", async (req, res) => {
     try {
-        const requestedLimit = parseInt(req.query.limit, 10) || 5
-        const limit = Math.min(Math.max(requestedLimit, 1), 10)
+        const requestedLimit = parseInt(req.query.limit, 10) || 25
+        const limit = Math.min(Math.max(requestedLimit, 1), 100)
         const search = String(req.query.search || "").trim()
+        const params = []
+        let whereClause = ""
 
-        if (!search) {
-            return res.json({ characters: [] })
+        if (search) {
+            const like = `%${search}%`
+            whereClause = `
+                WHERE p.citizenid LIKE ?
+                    OR p.name LIKE ?
+                    OR JSON_UNQUOTE(JSON_EXTRACT(p.charinfo, "$.firstname")) LIKE ?
+                    OR JSON_UNQUOTE(JSON_EXTRACT(p.charinfo, "$.lastname")) LIKE ?
+                    OR CAST(p.userId AS CHAR) LIKE ?
+                    OR u.username LIKE ?
+            `
+            params.push(like, like, like, like, like, like)
         }
 
-        const like = `%${search}%`
         const [rows] = await pool.query(
             `
                 SELECT
@@ -175,16 +185,11 @@ router.get("/roster-search", async (req, res) => {
                 FROM players p
                 LEFT JOIN users u ON u.userId = p.userId
                 LEFT JOIN mdt_character_profiles profile ON profile.citizenid = p.citizenid
-                WHERE p.citizenid LIKE ?
-                    OR p.name LIKE ?
-                    OR JSON_UNQUOTE(JSON_EXTRACT(p.charinfo, "$.firstname")) LIKE ?
-                    OR JSON_UNQUOTE(JSON_EXTRACT(p.charinfo, "$.lastname")) LIKE ?
-                    OR CAST(p.userId AS CHAR) LIKE ?
-                    OR u.username LIKE ?
+                ${whereClause}
                 ORDER BY p.last_updated DESC, p.citizenid ASC
                 LIMIT ?
             `,
-            [like, like, like, like, like, like, limit]
+            [...params, limit]
         )
 
         res.json({
