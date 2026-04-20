@@ -101,22 +101,31 @@ async function getFirstRankForGroupName(groupName) {
     return rows[0] || null
 }
 
-async function ensureUserMembershipForGroupName(userId, groupName) {
+async function replaceUserMembershipsForGroupName(userId, groupName) {
     const firstRank = await getFirstRankForGroupName(groupName)
     if (!firstRank) {
         return false
     }
 
-    await pool.query(
-        `
-            INSERT INTO mdt_user_group_memberships (user_id, group_id, rank_id, is_active)
-            VALUES (?, ?, ?, 1)
-            ON DUPLICATE KEY UPDATE
-                rank_id = VALUES(rank_id),
-                is_active = 1
-        `,
-        [userId, firstRank.group_id, firstRank.rank_id]
-    )
+    const connection = await pool.getConnection()
+
+    try {
+        await connection.beginTransaction()
+        await connection.query("DELETE FROM mdt_user_group_memberships WHERE user_id = ?", [userId])
+        await connection.query(
+            `
+                INSERT INTO mdt_user_group_memberships (user_id, group_id, rank_id, is_active)
+                VALUES (?, ?, ?, 1)
+            `,
+            [userId, firstRank.group_id, firstRank.rank_id]
+        )
+        await connection.commit()
+    } catch (error) {
+        await connection.rollback()
+        throw error
+    } finally {
+        connection.release()
+    }
 
     return true
 }
@@ -405,7 +414,7 @@ router.post("/fivem/session", async (req, res) => {
         }
 
         if (mappedGroupName) {
-            const membershipApplied = await ensureUserMembershipForGroupName(userIdForSession, mappedGroupName)
+            const membershipApplied = await replaceUserMembershipsForGroupName(userIdForSession, mappedGroupName)
             console.log("[MDT Auth] Applied mapped MDT group", {
                 userId: userIdForSession,
                 mappedGroupName,
