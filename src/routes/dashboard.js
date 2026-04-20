@@ -65,6 +65,23 @@ router.get("/", async (req, res) => {
                 ORDER BY COALESCE(occurred_at, created_at) DESC
                 LIMIT 5
             `
+        const recentAnnouncementsQuery = hasScopedTab
+            ? `
+                SELECT id, tab_id, title, body, priority, author_username, created_at, updated_at
+                FROM mdt_announcements
+                WHERE is_active = 1
+                    AND tab_id = ?
+                ORDER BY created_at DESC
+                LIMIT 5
+            `
+            : `
+                SELECT id, tab_id, title, body, priority, author_username, created_at, updated_at
+                FROM mdt_announcements
+                WHERE is_active = 1
+                    AND tab_id IS NULL
+                ORDER BY created_at DESC
+                LIMIT 5
+            `
 
         const [
             [characterRows],
@@ -80,10 +97,10 @@ router.get("/", async (req, res) => {
             pool.query(announcementCountQuery, hasScopedTab ? [tabId] : [])
         ])
 
-        const [recentIncidents] = await pool.query(
-            recentIncidentsQuery,
-            hasScopedTab ? [tabId] : []
-        )
+        const [[recentIncidents], [recentAnnouncements]] = await Promise.all([
+            pool.query(recentIncidentsQuery, hasScopedTab ? [tabId] : []),
+            pool.query(recentAnnouncementsQuery, hasScopedTab ? [tabId] : [])
+        ])
 
         res.json({
             stats: {
@@ -93,7 +110,8 @@ router.get("/", async (req, res) => {
                 evidence: Number(evidenceRows[0]?.total || 0),
                 announcements: Number(announcementRows[0]?.total || 0)
             },
-            recentIncidents
+            recentIncidents,
+            recentAnnouncements
         })
     } catch (error) {
         console.error(error)
