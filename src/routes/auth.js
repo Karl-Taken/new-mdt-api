@@ -366,22 +366,15 @@ router.post("/fivem/session", async (req, res) => {
 
         let userIdForSession = Number(existingRows[0]?.id || 0)
         if (!userIdForSession) {
-            const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10)
-            const [insertResult] = await pool.query(
-                `
-                    INSERT INTO mdt_users (username, password_hash, role, is_active, discord_id, citizenid, display_name)
-                    VALUES (?, ?, ?, 1, ?, ?, ?)
-                `,
-                [username, passwordHash, requestedRole, discordId, citizenid, displayName]
-            )
-            userIdForSession = Number(insertResult.insertId)
-            console.log("[MDT Auth] Created MDT user from FiveM session", {
-                userId: userIdForSession,
+            console.warn("[MDT Auth] Rejected FiveM session for missing MDT user", {
                 username,
                 displayName,
                 citizenid,
                 requestedRole,
                 discordId
+            })
+            return res.status(403).json({
+                error: "No MDT account exists for this character. Ask an MDT admin to create or link the account first."
             })
         } else {
             await pool.query(
